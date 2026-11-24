@@ -1,0 +1,33 @@
+name: Atualizar roms.json automaticamente
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'roms.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  index:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Gerar roms.json a partir das pastas de consoles
+        run: python3 gerar_roms_json.py
+
+      - name: Salvar roms.json atualizado
+        run: |
+          git config user.name "HUB STORE Bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add roms.json
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração em roms.json."
+          else
+            git commit -m "Atualizar roms.json automaticamente [skip ci]"
+            git push
+          fi
