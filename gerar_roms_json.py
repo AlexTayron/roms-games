@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Gera automaticamente roms.json a partir das pastas de consoles deste repositório.
 Cada pasta (ex.: nes/, snes/, gba/, psx/, psp/, atari2600/, megadrive/, arcade/)
@@ -59,7 +59,7 @@ NON_GAME_EXT = {
     "json", "xml", "yml", "yaml", "sh", "py", "lua", "js", "css", "html", "htm",
     "pdf", "ini", "cfg", "conf", "log",
 }
-IMG_EXT = ("png", "jpg", "jpeg", "webp")
+IMG_EXT = ("png", "jpg", "jpeg")
 
 
 def slug(text):
