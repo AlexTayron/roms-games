@@ -2,5 +2,33 @@
   "catalog_version": 1,
   "title": "HUB STORE - Loja de Jogos",
   "updated": "2026-11-25",
-  "games": []
+  "games": [
+    {
+      "id": "gb_pokemon-red-version-br",
+      "name": "Pokémon - Red Version (BR)",
+      "system": "gb",
+      "section": "roms",
+      "install_mode": "file",
+      "filename": "Pokémon - Red Version (BR).gb",
+      "file_type": "GB",
+      "size": 1048576,
+      "download_url": "https://github.com/AlexTayron/roms-games/releases/download/gb/Pokemon.-.Red.Version.BR.gb",
+      "description": "Game Boy • Pokémon - Red Version (BR).gb",
+      "source": "AlexTayron/roms-games",
+      "cover": "https://github.com/AlexTayron/roms-games/releases/download/gb/Pokemon.-.Red.Version.BR.png"
+    },
+    {
+      "id": "gb_pokemon-versao-azul-br",
+      "name": "Pokémon - Versão Azul (BR)",
+      "system": "gb",
+      "section": "roms",
+      "install_mode": "file",
+      "filename": "Pokémon - Versão Azul (BR).gb",
+      "file_type": "GB",
+      "size": 1048576,
+      "download_url": "https://github.com/AlexTayron/roms-games/releases/download/gb/Pokemon.-.Versao.Azul.BR.gb",
+      "description": "Game Boy • Pokémon - Versão Azul (BR).gb",
+      "source": "AlexTayron/roms-games"
+    }
+  ]
 }
