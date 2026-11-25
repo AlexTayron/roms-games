@@ -31,6 +31,32 @@
       "source": "AlexTayron/roms-games"
     },
     {
+      "id": "nds_apollo-justice-ace-attorney",
+      "name": "Apollo Justice - Ace Attorney",
+      "system": "nds",
+      "section": "roms",
+      "install_mode": "file",
+      "filename": "Apollo Justice - Ace Attorney.nds",
+      "file_type": "NDS",
+      "size": 60064556,
+      "download_url": "https://github.com/AlexTayron/roms-games/releases/download/nds/Apollo.Justice.-.Ace.Attorney.nds",
+      "description": "Nintendo DS • Apollo Justice - Ace Attorney.nds",
+      "source": "AlexTayron/roms-games"
+    },
+    {
+      "id": "nds_aqua-panic",
+      "name": "Aqua Panic!",
+      "system": "nds",
+      "section": "roms",
+      "install_mode": "file",
+      "filename": "Aqua Panic!.nds",
+      "file_type": "NDS",
+      "size": 16777216,
+      "download_url": "https://github.com/AlexTayron/roms-games/releases/download/nds/Aqua.Panic.nds",
+      "description": "Nintendo DS • Aqua Panic!.nds",
+      "source": "AlexTayron/roms-games"
+    },
+    {
       "id": "nds_barbie-groom-and-glam-pups-brazil-en-es-pt",
       "name": "Barbie - Groom and Glam Pups (Brazil) (En,Es,Pt)",
       "system": "nds",
