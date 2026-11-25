@@ -18,7 +18,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1")));
 const MAX_ASSETS_PER_RELEASE = 900; // margem segura abaixo do limite de 1000 do GitHub
@@ -360,6 +360,8 @@ async function getOrCreateRelease(repo, tag, title, token) {
     throw new Error(`Erro ao criar release ${tag}: HTTP ${createResp.status} — ${body}`);
   }
   const rel = await createResp.json();
+  // Pequena pausa para o endpoint uploads.github.com reconhecer a release recém-criada
+  await new Promise((r) => setTimeout(r, 2500));
   return { ...rel, assets: [] };
 }
 
@@ -372,19 +374,97 @@ async function deleteAsset(repo, assetId, token) {
   }
 }
 
-async function uploadAssetWithRetry(repo, releaseId, item, token, maxRetries = 3) {
+async function deleteConflictingAssetByName(repo, releaseId, assetName, token) {
+  let page = 1;
+  const target = assetName.toLowerCase();
+  while (true) {
+    const resp = await apiRequest(
+      `https://api.github.com/repos/${repo}/releases/${releaseId}/assets?per_page=100&page=${page}`,
+      token
+    );
+    if (!resp.ok) return;
+    const batch = await resp.json();
+    for (const a of batch) {
+      if ((a.name || "").toLowerCase() === target) {
+        await deleteAsset(repo, a.id, token);
+        return;
+      }
+    }
+    if (batch.length < 100) break;
+    page++;
+  }
+}
+
+function uploadViaCurl(uploadUrl, filePath, contentType, token) {
+  return new Promise((resolve, reject) => {
+    const curl = spawn(
+      "curl.exe",
+      [
+        "--silent",
+        "--show-error",
+        "--fail-with-body",
+        "--connect-timeout", "30",
+        "--speed-time", "90",
+        "--speed-limit", "1024",
+        "-X", "POST",
+        "-K", "-",
+        "--data-binary", `@${filePath}`,
+        uploadUrl,
+      ],
+      { stdio: ["pipe", "pipe", "pipe"] }
+    );
+
+    const configLines = [
+      `header = "Authorization: Bearer ${token}"`,
+      `header = "Accept: application/vnd.github+json"`,
+      `header = "X-GitHub-Api-Version: 2022-11-28"`,
+      `header = "Content-Type: ${contentType}"`,
+      `header = "User-Agent: HUB-STORE-release-uploader"`,
+    ].join("\n") + "\n";
+
+    curl.stdin.write(configLines);
+    curl.stdin.end();
+
+    let stdout = "";
+    let stderr = "";
+    curl.stdout.on("data", (d) => { stdout += d.toString(); });
+    curl.stderr.on("data", (d) => { stderr += d.toString(); });
+    curl.on("error", reject);
+    curl.on("close", (code) => {
+      if (code === 0) {
+        try {
+          resolve(JSON.parse(stdout));
+        } catch {
+          resolve({});
+        }
+      } else {
+        reject(new Error(`curl exit ${code}: ${(stderr || stdout).trim().slice(0, 300)}`));
+      }
+    });
+  });
+}
+
+async function uploadAssetWithRetry(repo, releaseId, item, token, maxRetries = 4) {
   const uploadUrl =
     `https://uploads.github.com/repos/${repo}/releases/${releaseId}/assets` +
     `?name=${encodeURIComponent(item.assetName)}&label=${encodeURIComponent(item.origName)}`;
 
+  const ext = path.extname(item.assetName).toLowerCase();
+  const contentType =
+    ext === ".png" ? "image/png" :
+    ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" :
+    "application/octet-stream";
+
+  // Usa curl.exe para arquivos > 20 MB (sem timeout de 300s do undici fetch)
+  const useCurl = item.size > 20 * 1024 * 1024;
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      if (useCurl) {
+        return await uploadViaCurl(uploadUrl, item.full, contentType, token);
+      }
+
       const blob = await fs.openAsBlob(item.full);
-      const ext = path.extname(item.assetName).toLowerCase();
-      const contentType =
-        ext === ".png" ? "image/png" :
-        ext === ".jpg" || ext === ".jpeg" ? "image/jpeg" :
-        "application/octet-stream";
       const resp = await apiRequest(uploadUrl, token, {
         method: "POST",
         headers: {
@@ -396,8 +476,11 @@ async function uploadAssetWithRetry(repo, releaseId, item, token, maxRetries = 3
       if (resp.ok) return await resp.json();
 
       const text = await resp.text();
-      if ((resp.status >= 500 || resp.status === 429) && attempt < maxRetries) {
-        const waitMs = 2000 * attempt;
+      if ((resp.status === 422 || resp.status >= 500 || resp.status === 429) && attempt < maxRetries) {
+        if (resp.status === 422) {
+          await deleteConflictingAssetByName(repo, releaseId, item.assetName, token);
+        }
+        const waitMs = 3000 * attempt;
         console.warn(`  [retry ${attempt}/${maxRetries}] HTTP ${resp.status} em ${item.origName}, aguardando ${waitMs}ms...`);
         await new Promise((r) => setTimeout(r, waitMs));
         continue;
@@ -405,7 +488,9 @@ async function uploadAssetWithRetry(repo, releaseId, item, token, maxRetries = 3
       throw new Error(`HTTP ${resp.status}: ${text}`);
     } catch (err) {
       if (attempt < maxRetries) {
-        const waitMs = 2000 * attempt;
+        // Remove eventual asset incompleto ("starter") deixado pela tentativa anterior
+        await deleteConflictingAssetByName(repo, releaseId, item.assetName, token);
+        const waitMs = 3000 * attempt;
         console.warn(`  [retry ${attempt}/${maxRetries}] Falha em ${item.origName}: ${err.message}`);
         await new Promise((r) => setTimeout(r, waitMs));
         continue;
@@ -529,7 +614,7 @@ async function main() {
     const queue = [];
     for (const item of chunk.assets) {
       const existing = existingByName.get(item.assetName.toLowerCase());
-      if (existing && existing.size === item.size) {
+      if (existing && existing.state === "uploaded" && existing.size === item.size) {
         skippedTotal++;
         continue;
       }
@@ -541,7 +626,9 @@ async function main() {
       continue;
     }
 
-    console.log(`  Enviando ${queue.length} arquivo(s) (${chunk.assets.length - queue.length} já existentes)...`);
+    const hasHugeFiles = queue.some((q) => q.item.size > 100 * 1024 * 1024);
+    const effectiveConcurrency = hasHugeFiles ? 1 : Math.min(opts.concurrency, queue.length);
+    console.log(`  Enviando ${queue.length} arquivo(s) (${chunk.assets.length - queue.length} já existentes, concorrência=${effectiveConcurrency})...`);
 
     let nextIdx = 0;
     const worker = async () => {
@@ -563,7 +650,7 @@ async function main() {
       }
     };
 
-    const workers = Array.from({ length: Math.min(opts.concurrency, queue.length) }, () => worker());
+    const workers = Array.from({ length: effectiveConcurrency }, () => worker());
     await Promise.all(workers);
   }
 
