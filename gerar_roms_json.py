@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Gera automaticamente roms.json a partir de:
   1. Pastas de consoles presentes neste repositório (ex.: nes/, snes/, gba/)
