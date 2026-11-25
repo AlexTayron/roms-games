@@ -6,8 +6,12 @@ on:
     paths-ignore:
       - 'roms.json'
   release:
-    types: [ published, edited, deleted, released ]
+    types: [ published, deleted, released ]
   workflow_dispatch:
+
+concurrency:
+  group: gerar-roms-json
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -18,6 +22,8 @@ jobs:
     steps:
       - name: Baixar repositório
         uses: actions/checkout@v4
+        with:
+          ref: main
 
       - name: Gerar roms.json a partir das pastas e GitHub Releases
         env:
@@ -34,5 +40,5 @@ jobs:
             echo "Nenhuma alteração em roms.json."
           else
             git commit -m "Atualizar roms.json automaticamente [skip ci]"
-            git push
+            git push origin HEAD:main
           fi
