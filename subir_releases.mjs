@@ -285,11 +285,19 @@ function detectRepo() {
 function resolveToken() {
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN.trim();
   if (process.env.GH_TOKEN) return process.env.GH_TOKEN.trim();
-  try {
-    const t = execSync("gh auth token", { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-    if (t) return t;
-  } catch {
-    // gh não instalado ou não autenticado
+  const ghCandidates = [
+    "gh",
+    "C:\\Program Files\\GitHub CLI\\gh.exe",
+    "C:\\Program Files (x86)\\GitHub CLI\\gh.exe",
+  ];
+  for (const bin of ghCandidates) {
+    try {
+      const cmd = bin.includes(" ") ? `"${bin}" auth token` : `${bin} auth token`;
+      const t = execSync(cmd, { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+      if (t) return t;
+    } catch {
+      // tenta próximo candidato
+    }
   }
   return "";
 }
