@@ -5,6 +5,8 @@ on:
     branches: [ main ]
     paths-ignore:
       - 'roms.json'
+  release:
+    types: [ published, edited, deleted, released ]
   workflow_dispatch:
 
 permissions:
@@ -17,7 +19,10 @@ jobs:
       - name: Baixar repositório
         uses: actions/checkout@v4
 
-      - name: Gerar roms.json a partir das pastas de consoles
+      - name: Gerar roms.json a partir das pastas e GitHub Releases
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUIRE_RELEASES: "1"
         run: python3 gerar_roms_json.py
 
       - name: Salvar roms.json atualizado
