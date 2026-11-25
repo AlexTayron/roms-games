@@ -21086,6 +21086,20 @@
       "cover": "https://github.com/AlexTayron/roms-games/releases/download/megadrive-3/Zoop.png"
     },
     {
+      "id": "n64_007-goldeneye",
+      "name": "007 - GoldenEye",
+      "system": "n64",
+      "section": "roms",
+      "install_mode": "file",
+      "filename": "007 - GoldenEye.n64",
+      "file_type": "N64",
+      "size": 12582912,
+      "download_url": "https://github.com/AlexTayron/roms-games/releases/download/n64/007.-.GoldenEye.n64",
+      "description": "Nintendo 64 • 007 - GoldenEye.n64",
+      "source": "AlexTayron/roms-games",
+      "cover": "https://github.com/AlexTayron/roms-games/releases/download/n64/007.-.GoldenEye.png"
+    },
+    {
       "id": "nds_apollo-justice-ace-attorney",
       "name": "Apollo Justice - Ace Attorney",
       "system": "nds",
