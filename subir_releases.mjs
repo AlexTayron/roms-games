@@ -306,6 +306,34 @@ function formatMB(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+async function sleep(ms) {
+  await new Promise((r) => setTimeout(r, ms));
+}
+
+async function waitForRateLimitIfNeeded(resp) {
+  if (resp.status !== 403 && resp.status !== 429) return false;
+  const remaining = resp.headers.get("x-ratelimit-remaining");
+  const retryAfter = resp.headers.get("retry-after");
+  const resetHeader = resp.headers.get("x-ratelimit-reset");
+
+  let waitMs = 0;
+  if (retryAfter) {
+    waitMs = (Number(retryAfter) + 5) * 1000;
+  } else if (remaining === "0" && resetHeader) {
+    const resetMs = Number(resetHeader) * 1000;
+    waitMs = Math.max(15000, resetMs - Date.now() + 10000);
+  } else if (resp.status === 429) {
+    waitMs = 60000;
+  } else {
+    return false;
+  }
+
+  const until = new Date(Date.now() + waitMs).toLocaleTimeString();
+  console.warn(`  [rate-limit] Limite da API do GitHub atingido. Aguardando ${Math.ceil(waitMs / 1000)}s (até ${until})...`);
+  await sleep(waitMs);
+  return true;
+}
+
 async function apiRequest(url, token, options = {}) {
   const headers = {
     Accept: "application/vnd.github+json",
@@ -314,6 +342,13 @@ async function apiRequest(url, token, options = {}) {
     "X-GitHub-Api-Version": "2022-11-28",
     ...(options.headers || {}),
   };
+  for (let i = 0; i < 6; i++) {
+    const resp = await fetch(url, { ...options, headers });
+    if (await waitForRateLimitIfNeeded(resp)) {
+      continue;
+    }
+    return resp;
+  }
   return fetch(url, { ...options, headers });
 }
 
@@ -476,23 +511,40 @@ async function uploadAssetWithRetry(repo, releaseId, item, token, maxRetries = 4
       if (resp.ok) return await resp.json();
 
       const text = await resp.text();
+      if (resp.status === 403 && /rate limit/i.test(text)) {
+        const resetHeader = resp.headers.get("x-ratelimit-reset");
+        const waitMs = resetHeader
+          ? Math.max(15000, Number(resetHeader) * 1000 - Date.now() + 10000)
+          : 120000;
+        const until = new Date(Date.now() + waitMs).toLocaleTimeString();
+        console.warn(`  [rate-limit] Limite da API atingido em ${item.origName}. Aguardando ${Math.ceil(waitMs / 1000)}s (até ${until})...`);
+        await sleep(waitMs);
+        attempt--;
+        continue;
+      }
       if ((resp.status === 422 || resp.status >= 500 || resp.status === 429) && attempt < maxRetries) {
         if (resp.status === 422) {
           await deleteConflictingAssetByName(repo, releaseId, item.assetName, token);
         }
         const waitMs = 3000 * attempt;
         console.warn(`  [retry ${attempt}/${maxRetries}] HTTP ${resp.status} em ${item.origName}, aguardando ${waitMs}ms...`);
-        await new Promise((r) => setTimeout(r, waitMs));
+        await sleep(waitMs);
         continue;
       }
       throw new Error(`HTTP ${resp.status}: ${text}`);
     } catch (err) {
+      if (/rate limit/i.test(err.message || "")) {
+        console.warn(`  [rate-limit] Limite da API atingido em ${item.origName}. Aguardando 120s...`);
+        await sleep(120000);
+        attempt--;
+        continue;
+      }
       if (attempt < maxRetries) {
         // Remove eventual asset incompleto ("starter") deixado pela tentativa anterior
         await deleteConflictingAssetByName(repo, releaseId, item.assetName, token);
         const waitMs = 3000 * attempt;
         console.warn(`  [retry ${attempt}/${maxRetries}] Falha em ${item.origName}: ${err.message}`);
-        await new Promise((r) => setTimeout(r, waitMs));
+        await sleep(waitMs);
         continue;
       }
       throw err;
